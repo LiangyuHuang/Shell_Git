@@ -1,0 +1,187 @@
+#!/bin/dash
+
+# check directory
+if [ ! -d '.shrug' ];then
+    echo "$0: error: no .shrug directory containing shrug repository exists"
+    exit 1
+fi
+
+#check .shrug/.commit
+if [ ! -d '.shrug/commits' ];then
+    echo "$0: error: your repository does not have any commits yet"
+    exit 1
+fi
+
+# check argv
+if [ $# -eq 0 ];then
+    echo "usage: shrug-rm [--force] [--cached] <filenames>"
+    exit 1
+fi
+
+# check name $1 current filename $2 target filename
+checkname(){
+    if [ -z "$2" ];then
+        echo "$0: error: invalid filename '$2'"
+        exit 1
+    elif echo "$2"| egrep -q "^[^0-9a-zA-Z]";then
+        echo "$0: error: invalid filename '$2'"
+        exit 1
+    elif echo "$2"| egrep -q "^([0-9a-zA-Z]+\.[\.|\-|_]+)$";then     # 123.. 123.- 123._
+        echo "$0: error: invalid filename '$2'"
+        exit 1
+    fi
+}
+
+# compare file $1 mode
+file_compare(){
+    error=2
+    same=1
+    differ=0
+
+    # argv1 = 1: compare file between current dir and index dir
+    if [ $1 -eq 1 ];then
+        if [ -z "`find .shrug/index -name $2`" ];then
+            echo $error
+        else
+            diff ".shrug/index/$2" "$2" >/dev/null
+            if [ $? != 0 ];then
+                echo $same
+            else
+                echo $differ
+            fi
+        fi
+    fi
+     # argv1 = 2: compare files between current dir and last commit 
+    if [ $1 -eq 2 ];then
+        if [ -z "`find ".shrug/commits/commit$3" -name $2`" ];then
+            echo $error
+        else
+            diff ".shrug/commits/commit$3/$2" "$2" >/dev/null
+            if [ $? != 0 ];then
+                echo $same
+            else
+                echo $differ
+            fi
+        fi
+    fi
+    # argv1 = 3: compare files between index dir and last commit 
+    if [ $1 -eq 3 ];then
+        if [ ! -z "`find ".shrug/commits/commit$3" -name $2`" ] && [ ! -z "`find .shrug/index -name $2`" ];then
+            diff ".shrug/index/$2" ".shrug/commits/commit$3/$2" >/dev/null
+            if [ $? != 0 ];then
+                echo $same
+            else
+                echo $differ
+            fi
+        else
+            echo $error
+        fi
+    fi
+}
+
+# check wether the file is different before rm
+check(){
+    temp_differ=1
+    temp_same=0
+    temp_error=2
+    if [ -e '.shrug/commits/log.txt' ];then
+        lastestcommit=`cat '.shrug/commits/log.txt'| head -n1| cut -d' ' -f1`
+
+        # error=2   same=1  differ=0
+        current_index=$(file_compare 1 $1 $lastestcommit)
+        current_last=$(file_compare 2 $1 $lastestcommit)
+        index_last=$(file_compare 3 $1 $lastestcommit)
+        force=$2
+        cached=$3
+
+        if [ $force -eq 0 ];then
+            # file in index dir differs from current and last commit 
+            if [ $current_index -eq $temp_differ ];then
+                if [ $index_last -eq $temp_differ ];then 
+                    echo "$0: error: '$1' in index is different to both working file and repository"
+                    exit 1
+                fi
+            fi
+
+            if [ $cached -eq 0 ];then
+                if [ $force -eq 0 ];then
+                # file in index dir same as current, but has not commit, or differs from last commit
+                    if [ $current_index -eq $temp_same ] && ([ $index_last -eq $temp_differ ] || [ $current_last -eq $temp_error ]);then
+                        echo "$0: error: '$1' has changes staged in the index"
+                        exit 1
+                    #  file in current differs from last commit, and has not been added into index dir  
+                    elif [ $current_last -eq $temp_differ ] && [ $index_last -eq $temp_same ];then
+                        echo "$0: error: '$1' in repository is different to working file"
+                        exit 1
+                    fi
+                fi
+            fi
+        fi
+
+        if [ $current_index -eq 2 ];then
+            echo "$0: error: '$1' is not in the shrug repository"
+            exit 1
+        fi
+    fi
+}
+
+
+
+# if cached, remove file from index dir
+# otherwise, remove both 
+# $1 : cached $2 : file name
+rm_file(){    
+    # if cached == 0 , no cached(file in current dir)needed 
+    if [ $1 -eq 0 ];then
+        rm $2
+    fi
+    rm  ".shrug/index/$2"
+}
+
+# no filename
+if [ $# -eq 0 ];then
+    echo "usage: shrug-rm [--force] [--cached] <filenames>"
+    exit 1
+fi
+
+# only one filename
+if [ $# -eq 1 ];then
+    checkname "$0" "$1"
+fi
+
+# two argvs
+if [ $# -eq 2 ];then
+    if [ $1 != '--force' ] && [ $1 != '--cached' ];then
+        echo "usage: shrug-rm [--force] [--cached] <filenames>"
+        exit 1
+    elif [ $1 != '--cached' ] && [ $1 != '--force' ];then
+        echo "usage: shrug-rm [--force] [--cached] <filenames>"
+        exit 1
+    else
+        checkname "$0" "$2"
+    fi
+fi
+
+force=0
+cached=0
+
+for temp_argv in $@;do
+    if [ $temp_argv = '--force' ];then
+        force=1
+    elif [ $temp_argv = '--cached' ];then
+        cached=1
+    fi
+done
+
+for file in $@;do
+    if [ $file != '--force' ] && [ $file != '--cached' ];then
+        check $file $force $cached
+    fi
+done
+
+ 
+for file in $@;do
+    if [ $file != '--force' ] && [ $file != '--cached' ];then
+        rm_file $cached $file
+    fi
+done

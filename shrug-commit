@@ -1,0 +1,138 @@
+#!/bin/dash
+
+# check directory
+if [ ! -d '.shrug' ];then
+    echo "$0: error: no .shrug directory containing shrug repository exists"
+    exit 1
+fi
+
+#creat .shrug/.commit
+if [ ! -d '.shrug/commits' ];then
+    mkdir '.shrug/commits'
+fi
+
+# check the quantity of argv
+if [ $# -ne 2 ] && [ $# -ne 3 ];then
+    echo "usage: shrug-commit [-a] -m commit-message"
+    exit 1
+fi
+
+# creat commit directory, save log, copy file from index to commit
+copyhelper(){
+    cd '.shrug/commits'
+    num=0
+    dirname="commit$num"
+    while [ -d $dirname ];do
+        num=`expr $num + 1`
+        dirname="commit$num"
+    done
+    mkdir $dirname
+
+    # save log in '.shrug/commits'
+    if [ ! -e "log.txt" ];then
+        echo "$num $1" >> "log.txt"
+    else
+        sed -i "1i $num $1" "log.txt"
+    fi
+
+    cd ..
+    cd ..
+
+    # copy
+        for file in .shrug/index/* ;do
+            if [ $file != '.shrug/index/*' ];then
+                cp $file ".shrug/commits/$dirname"
+            fi
+        done
+
+    echo "Committed as commit $num"
+}
+
+# check index
+indexhelper(){
+    # check the availablity of index
+    if [ ! -d ".shrug/index" ];then
+        echo "nothing to commit"
+        exit 1
+    elif [ -z "`ls -l .shrug/index`" ];then
+        echo "nothing to commit"
+        exit 1
+    fi
+}
+
+changehelper(){
+    # check if the file is changed or not, when this is not first commit
+    quantity=0
+    same=0
+    if [ -e '.shrug/commits/log.txt' ];then
+        lastcommit=`cat .shrug/commits/log.txt| head -n1| cut -d ' ' -f1`
+        for file in .shrug/index/* ;do
+            filename=`echo $file| sed 's/.*.shrug\/index\///'`
+            quantity=`expr $quantity + 1`
+            if [ -e ".shrug/commits/commit$lastcommit/$filename" ];then
+                diff "$file" ".shrug/commits/commit$lastcommit/$filename" >/dev/null
+                if [ $? -eq 0 ];then
+                    same=`expr $same + 1`
+                fi
+            elif [ ! -e ".shrug/commits/commit$lastcommit/$filename" ];then
+                same=-1
+            fi
+        done
+        filequantity=`ls -l ".shrug/commits/commit$lastcommit/"| egrep '^-'| wc -l| sed 's/ *//'`
+        indexquantity=`ls -l ".shrug/index/"| egrep '^-'| wc -l| sed 's/ *//'`
+        if [ $filequantity -eq 0 ] && [ $indexquantity -eq 0 ];then
+            echo "nothing to commit"
+            exit 1
+        fi
+        if [ $filequantity -ne $quantity ];then
+            same=-1
+        fi
+        if [ $quantity -eq $same ];then
+            echo "nothing to commit"
+            exit 1
+        fi
+    fi
+}
+
+# copy file to index
+copyindex(){
+        for file in .shrug/index/* ;do
+            if [ $file != '.shrug/index/*' ];then
+                filename=`echo $file| sed 's/.*.shrug\/index\///'`
+                if [ -e $filename ];then
+                    cp "$filename" "$file"
+                else
+                    echo "$0: error: cannot copy"
+                    exit 1
+                fi
+            fi
+        done
+}
+
+# commit -m message
+if [ $# -eq 2 ];then
+    if [ $1 = '-m' ];then
+        indexhelper
+        changehelper
+        copyhelper "$2"
+    elif [ $1 = '-am' ] || [ $1 = '-ma' ];then
+        indexhelper
+        copyindex
+        copyhelper "$2"
+    else
+        echo "usage: shrug-commit [-a] -m commit-message"
+        exit 1  
+    fi
+fi
+
+# commit -a -m message
+if [ $# -eq 3 ];then
+    if ([ $1 = '-a' ] && [ $2 = '-m' ]) || ([ $1 = '-m' ] && [ $2 = '-a' ]);then 
+        indexhelper
+        copyindex
+        copyhelper "$3"
+    else
+        echo "usage: shrug-commit [-a] -m commit-message"
+        exit 1
+    fi
+fi

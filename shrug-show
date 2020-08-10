@@ -1,0 +1,64 @@
+#!/bin/dash
+
+# check directory
+if [ ! -d '.shrug' ];then
+    echo "$0: error: no .shrug directory containing shrug repository exists"
+    exit 1
+fi
+
+# check argv
+if [ $# -ne 1 ];then
+    echo "usage: shrug-show <commit>:<filename>"
+    exit 1
+fi
+
+if [ $# -ne 1 ];then
+    echo "usage: shrug-show <commit>:<filename>"
+    exit 1
+else
+    argv1=`echo $1| cut -d ':' -f1`
+    filename=`echo $1| cut -d ':' -f2`
+    if [ -z "$argv1" ]; then
+        if [ -z `find .shrug/index/ -name $filename` ];then
+            echo "$0: error: '$filename' not found in index"
+            exit 1
+        elif echo "$filename"|egrep -q '^[^0-9A-Za-z]';then 
+			echo "$0: error: invalid filename '$filename'"
+			exit 1
+		elif echo "$filename"|egrep -q '[^0-9A-Za-z\._\-]';then 
+			echo "$0: error: invalid filename '$filename'"
+			exit 1
+        else
+            cat ".shrug/index/$filename"
+        fi
+    elif [ $argv1 -ge 0 ] 2>/dev/null; then #check if argv1 is numemical
+        if [ ! -e ".shrug/commits/log.txt" ];then
+            echo "$0: error: unknown commit '$argv1'"
+            exit 1
+        else
+            lastcommit=`cat .shrug/commits/log.txt| head -n1| cut -d ' ' -f1`
+        fi
+
+	    if [ $argv1 -gt $lastcommit ];then
+		    echo "$0: error: unknown commit '$argv1'"
+		    exit 1
+        elif echo "$filename"|egrep -q '^[^0-9A-Za-z]';then 
+		    echo "$0: error: invalid filename '$filename'"
+		    exit 1
+	    elif echo "$filename"|egrep -q '[^0-9A-Za-z\._\-]';then 
+			echo "$0: error: invalid filename '$filename'"
+			exit 1
+	    elif [ ! -d ".shrug/commits/commit$argv1" ];then
+            echo "$0: error: unknown commit '$argv1'"
+            exit 1
+        elif [ -z `find ".shrug/commits/commit$argv1" -name "$filename"` ];then
+		    echo "$0: error: '$filename' not found in commit $argv1"
+		    exit 1
+        else
+            cat ".shrug/commits/commit$argv1/$filename"
+        fi
+    else
+        echo "$0: error: unknown commit '$argv1'"
+        exit 1
+    fi
+fi

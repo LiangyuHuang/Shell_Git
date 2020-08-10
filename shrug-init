@@ -1,0 +1,13 @@
+#!/bin/dash
+
+if [ $# -eq 0 ];then
+    if [ ! -d '.shrug' ];then
+        mkdir '.shrug'
+        echo 'Initialized empty shrug repository in .shrug'
+    else
+        echo "$0: error: .shrug already exists"
+    fi
+else
+    echo 'Please do not input argv.'
+    exit 1
+fi

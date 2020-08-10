@@ -1,0 +1,44 @@
+#!/bin/dash
+
+# check directory
+if [ ! -d '.shrug' ];then
+    echo "$0: error: no .shrug directory containing shrug repository exists"
+    exit 1
+fi
+
+# check argv
+if [ $# -eq 0 ];then
+    echo "usage: shrug-add <filename>"
+    exit 1
+fi
+
+# check name
+for file in "$@";do
+    if [ -z "$file" ];then
+        echo "$0: invalid filename: $file."
+        exit 1
+    elif echo "$file"| egrep -q "^[^0-9a-zA-Z]";then
+        echo "$0: invalid filename: $file."
+        exit 1
+    elif echo "$file"| egrep -q "^([0-9a-zA-Z]+\.[\.|\-|_]+)$";then     # 123.. 123.- 123._
+        echo "$0: invalid filename: $file."
+        exit 1
+    #elif echo "$file"| egrep -q ".$";then   # 123.
+    #    echo "$@: invalid filename: $file."
+    #    exit 1
+    fi
+done
+
+mkdir -p ".shrug/index"
+
+for file in "$@";do
+    if [ ! -e $file ];then
+        if [ ! -z "`find .shrug/index -name $file`" ];then
+            rm -f ".shrug/index/$file"
+        else
+            echo "$0: error: can not open '$file'"
+        fi
+    else
+        cp -rf $file ".shrug/index"
+    fi
+done
